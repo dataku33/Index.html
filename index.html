@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Berdiri: Benar atau Salah?</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--blue:37,99,235;--red:220,38,38;--green:22,163,74;--ink:#111827}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;height:100%;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#111;overflow:hidden;color:var(--ink)}
+#game{position:relative;display:flex;height:100%;width:100%;background:#222}
+#cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:none}
+.half{position:relative;flex:1;border:0;font:inherit;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:9vh;transition:background .3s;font-size:clamp(26px,6vw,56px);font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.5)}
+#btnT{background:rgba(var(--blue),.45)}#btnF{background:rgba(var(--red),.45);border-left:3px solid #fff}
+#game.correct .half{background:rgba(var(--green),.82)}
+#game.wrong .half{background:rgba(var(--red),.82)}
+.half:disabled{cursor:default}
+.bar{position:absolute;bottom:0;left:0;right:0;height:0;background:rgba(255,255,255,.55);transition:height .2s}
+#top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);left:0;right:0;display:flex;justify-content:space-between;padding:0 14px;color:#fff;font-weight:700;z-index:3;font-size:15px;text-shadow:0 1px 4px #000;pointer-events:none}
+#center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88%,520px);background:#fff;border-radius:20px;padding:22px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.4);z-index:2}
+#center p{margin:0}
+#q{font-size:clamp(18px,4.5vw,26px);font-weight:700;line-height:1.35}
+#timer{font-size:44px;font-weight:800;margin-top:8px}
+.hint{font-size:13px;opacity:.65;margin-top:8px;line-height:1.4}
+h2{margin:0 0 8px}
+.ok h2{color:#16a34a}.no h2{color:#dc2626}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:12px;padding:12px 22px;font:inherit;font-weight:700;font-size:16px;cursor:pointer;margin:4px}
+.btn.alt{background:#e5e7eb;color:var(--ink)}
+.st{display:none}
+</style>
+</head>
+<body>
+<div id="game">
+  <video id="cam" playsinline muted></video>
+  <div id="top"><span id="no"></span><span id="score"></span></div>
+  <button class="half" id="btnT">✔ BENAR<div class="bar" id="barL"></div></button>
+  <button class="half" id="btnF">✘ SALAH<div class="bar" id="barR"></div></button>
+  <div id="center">
+    <div class="st" id="sStart">
+      <h2>Berdiri: Benar atau Salah?</h2>
+      <p>Anak berdiri di sisi <b>kiri (Benar)</b> atau <b>kanan (Salah)</b> layar. Kamera mendeteksi posisi berdiri.</p>
+      <input id="nm" placeholder="Nama pemain (opsional)" style="padding:10px;border:1px solid #ccc;border-radius:10px;font:inherit;width:80%;margin:8px 0">
+      <p class="hint" id="camErr"></p>
+      <button class="btn" id="bCam">📷 Aktifkan Kamera</button>
+      <button class="btn alt" id="bTap">Main tanpa kamera (tap)</button>
+    </div>
+    <div class="st" id="sCal"><h2>Kalibrasi</h2><p>Semua orang <b>keluar dari kamera</b> dulu ya…</p><div id="calT" style="font-size:44px;font-weight:800;margin-top:8px"></div></div>
+    <div class="st" id="sAsk"><p id="q"></p><div id="timer"></div><div class="hint" id="askHint">Berdiri di sisi jawabanmu sebelum waktu habis!</div></div>
+    <div class="st" id="sRes"><h2 id="verdict"></h2><p id="exp" style="line-height:1.4"></p><p class="hint" id="who"></p><button class="btn" id="next">Lanjut ▶</button></div>
+    <div class="st" id="sEnd"><h2>Selesai! 🎉</h2><div id="final" style="font-size:56px;font-weight:800"></div><p id="msg"></p><button class="btn" id="again">Main Lagi</button><button class="btn alt" id="recal">Kalibrasi ulang</button></div>
+  </div>
+</div>
+<script>
+// >>> GANTI URL DI BAWAH INI dengan URL /exec dari Apps Script Anda <<<
+const API_URL='https://script.google.com/macros/s/AKfycbzxEnXHbBw8dhLBM2zJuOZ9RaYC3nhCVCmDg43FrGF4x51WZIx8dTA1UYHsA0_EWirv/exec';
+
+let Q=[
+["Matahari adalah sebuah bintang.",true,"Matahari adalah bintang terdekat dari Bumi."],
+["Ibu kota Indonesia saat ini adalah Bandung.",false,"Ibu kota Indonesia adalah Jakarta."],
+["Air mendidih pada suhu 100°C di permukaan laut.",true,"Pada tekanan 1 atm, air mendidih di 100°C."],
+["Paus adalah jenis ikan.",false,"Paus adalah mamalia; bernapas dengan paru-paru dan menyusui."],
+["7 × 8 = 56.",true,"7 × 8 memang sama dengan 56."],
+["Jantung manusia memiliki 3 bilik.",false,"Jantung manusia punya 4 bilik: 2 serambi dan 2 bilik."],
+["Pancasila memiliki 5 sila.",true,"Pancasila terdiri dari lima sila."],
+["Planet terbesar di tata surya adalah Mars.",false,"Planet terbesar adalah Jupiter."],
+["Tumbuhan menyerap karbon dioksida saat fotosintesis.",true,"Tumbuhan menyerap CO₂ dan menghasilkan oksigen."],
+["Candi Borobudur terletak di Bali.",false,"Candi Borobudur ada di Magelang, Jawa Tengah."]
+];
+const TIME=6, W=64, H=48, THR=35, MIN=0.03;
+const $=id=>document.getElementById(id), g=$('game'), cam=$('cam');
+let order,i,score,locked,useCam=false,ref=null,samples=[],tick=null,tmr=null;
+const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+const cx=cv.getContext('2d',{willReadFrequently:true});
+function panel(id){document.querySelectorAll('.st').forEach(e=>e.style.display='none');$(id).style.display='block'}
+function gray(){cx.drawImage(cam,0,0,W,H);const d=cx.getImageData(0,0,W,H).data,o=new Float32Array(W*H);for(let p=0;p<W*H;p++)o[p]=.3*d[p*4]+.59*d[p*4+1]+.11*d[p*4+2];return o}
+function measure(){
+  const f=gray();let L=0,R=0;const n=W*H/2;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    if(Math.abs(f[y*W+x]-ref[y*W+x])>THR){x>=W/2?L++:R++}
+  }
+  return {L:L/n,R:R/n};
+}
+function shuffle(a){a=a.slice();for(let k=a.length-1;k>0;k--){const j=Math.floor(Math.random()*(k+1));[a[k],a[j]]=[a[j],a[k]]}return a}
+async function enableCam(){
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480},audio:false});
+    cam.srcObject=s;await cam.play();cam.style.display='block';useCam=true;calibrate();
+  }catch(e){$('camErr').textContent='Kamera tidak bisa diakses ('+(e.name||'error')+'). Izinkan kamera di browser, atau main dengan tap.'}
+}
+function calibrate(){
+  panel('sCal');g.className='';$('no').textContent='';$('score').textContent='';
+  let t=4;$('calT').textContent=t;
+  const c=setInterval(()=>{t--;$('calT').textContent=t>0?t:'📸';if(t<=0){clearInterval(c);capture()}},1000);
+}
+function capture(){
+  const acc=new Float32Array(W*H);let n=0;
+  const c=setInterval(()=>{const f=gray();for(let p=0;p<acc.length;p++)acc[p]+=f[p];n++;
+    if(n>=5){clearInterval(c);for(let p=0;p<acc.length;p++)acc[p]/=n;ref=acc;start()}},200);
+}
+function start(){order=shuffle(Q);i=0;score=0;show()}
+function show(){
+  locked=false;g.className='';$('btnT').disabled=$('btnF').disabled=false;
+  $('q').textContent=order[i][0];$('no').textContent='Soal '+(i+1)+'/'+order.length;$('score').textContent='Skor: '+score;
+  panel('sAsk');$('askHint').textContent=useCam?'Berdiri di sisi jawabanmu sebelum waktu habis!':'Tap sisi kiri (Benar) atau kanan (Salah)';
+  samples=[];$('barL').style.height=$('barR').style.height='0';
+  if(useCam){
+    let t=TIME;$('timer').textContent=t;
+    tick=setInterval(()=>{const m=measure();samples.push(m);if(samples.length>8)samples.shift();
+      $('barL').style.height=Math.min(100,m.L*300)+'%';$('barR').style.height=Math.min(100,m.R*300)+'%'},200);
+    tmr=setInterval(()=>{t--;$('timer').textContent=t;if(t<=0)decide()},1000);
+  }else $('timer').textContent='';
+}
+function stop(){clearInterval(tick);clearInterval(tmr)}
+function decide(){
+  stop();if(locked)return;
+  let L=0,R=0;samples.forEach(s=>{L+=s.L;R+=s.R});const n=Math.max(1,samples.length);L/=n;R/=n;
+  if(Math.max(L,R)<MIN)answer(null);else answer(L>R);
+}
+function answer(v){
+  if(locked)return;locked=true;stop();
+  const [,ans,exp]=order[i];const ok=v===ans;if(ok)score++;
+  g.className=ok?'correct':'wrong';$('btnT').disabled=$('btnF').disabled=true;
+  $('barL').style.height=$('barR').style.height='0';
+  panel('sRes');$('sRes').className='st '+(ok?'ok':'no');$('sRes').style.display='block';
+  $('verdict').textContent=ok?'✔ Benar!':(v===null?'⏱ Tidak terdeteksi':'✘ Salah!');
+  $('exp').textContent='Jawaban: '+(ans?'BENAR':'SALAH')+'. '+exp;
+  $('who').textContent=v===null?'Tidak ada yang berdiri di salah satu sisi.':'Kamu memilih: '+(v?'BENAR (kiri)':'SALAH (kanan)');
+  $('score').textContent='Skor: '+score;
+}
+function next(){
+  i++;
+  if(i>=order.length){
+    g.className='';panel('sEnd');$('final').textContent=score+' / '+order.length;
+    $('msg').textContent=score>=8?'Hebat sekali!':score>=5?'Bagus, terus belajar!':'Ayo coba lagi!';
+    save();
+    $('recal').style.display=useCam?'inline-block':'none';
+  }else show();
+}
+$('btnT').onclick=()=>answer(true);
+$('btnF').onclick=()=>answer(false);
+$('bCam').onclick=enableCam;
+$('bTap').onclick=()=>{useCam=false;start()};
+$('next').onclick=next;$('again').onclick=start;$('recal').onclick=calibrate;
+
+const hasApi=()=>API_URL.startsWith('https://');
+function save(){if(!hasApi())return;
+  const p=new URLSearchParams({action:'save',nama:$('nm').value||'Anonim',skor:score,total:order.length});
+  fetch(API_URL+'?'+p).catch(()=>{});}
+if(hasApi())fetch(API_URL+'?action=questions').then(r=>r.json()).then(q=>{if(Array.isArray(q)&&q.length)Q=q}).catch(()=>{});
+
+panel('sStart');
+if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)$('camErr').textContent='Browser ini tidak mendukung kamera.';
+</script>
+</body>
+</html>
